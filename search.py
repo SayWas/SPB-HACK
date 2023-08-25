@@ -3,7 +3,7 @@ import time
 from sklearn.metrics.pairwise import paired_cosine_distances
 import seaborn as sns
 
-from config import TRAIN_EX, TEST_EX, EPOCHS
+from config import TRAIN_EX, TEST_EX, EPOCHS, TEST_PATH
 from dataset import load_dataset, create_pair_data, get_corpus
 from sentence_transformers import SentenceTransformer, InputExample, evaluation, losses, util
 import torch
@@ -29,17 +29,19 @@ def get_data_loader(path: str, ex: int):
     return dataloader
 
 
-def get_model(model_name: str):
+def get_model(model_name: str, save: bool = False):
     model = SentenceTransformer(model_name)
+    if save:
+        model.save(model_name)
     return model
 
 
-def fit_save_model(model, dataloader, ex):
+def fit_save_model(name: str, model: SentenceTransformer, dataloader, ex):
     train_loss = losses.CosineSimilarityLoss(model=model)
     model.fit(train_objectives=[(dataloader, train_loss)],
               epochs=EPOCHS,
               warmup_steps=int(0.1 * (ex / 8)))
-    model.save("model_dataset")
+    model.save(name)
 
 
 def evaluate_model(model, path: str):
@@ -59,9 +61,8 @@ def evaluate_model(model, path: str):
     sns.distplot(cosine_scores[int(TEST_EX / 2):], label="0")
 
 
-def get_addresses(query: list[str], model: SentenceTransformer, corpus: list[str]):
+def get_addresses(query: list[str], model: SentenceTransformer, corpus_embeddings: torch.Tensor, corpus: list[str]):
     query_embedding = model.encode(query, convert_to_tensor=True, show_progress_bar=True, device="cuda")
-    corpus_embeddings = model.encode(corpus, convert_to_tensor=True, show_progress_bar=True, device="cuda")
 
     cos_scores = util.cos_sim(query_embedding, corpus_embeddings)[0]
     top_results = torch.topk(cos_scores, k=5)
@@ -69,15 +70,27 @@ def get_addresses(query: list[str], model: SentenceTransformer, corpus: list[str
         print(corpus[idx], "(Score: {:.4f})".format(score))
 
 
-if __name__ == '__main__':
-    path = "train_dataset_v1.csv"
-    dataloader = get_data_loader(path, TRAIN_EX)
-    model = get_model("model_dataset")
-    fit_save_model(model, dataloader, TRAIN_EX)
-    # evaluate_model(model, path)
-    model = get_model("model_dataset")
+def make_save_corpus(name: str, path: str, model: SentenceTransformer):
+    corpus = get_corpus(path)
+    embeddings = model.encode(corpus, batch_size=128, show_progress_bar=True, convert_to_tensor=True, device="cuda")
+    torch.save(embeddings, name + ".pt")
 
-    path = "additional_data/building_20230808.csv"
+
+def load_corpus_embeddings(path: str):
+    return torch.load(path)
+
+
+if __name__ == '__main__':
+    path = "not_simple_2000.csv"
+    dataloader = get_data_loader(path, TRAIN_EX)
+    model = get_model("ai-forever/sbert_large_nlu_ru")
+    fit_save_model("dev_model", model, dataloader, TRAIN_EX)
+    # evaluate_model(model, path)
+    # model = get_model("model_dataset")
+
+    # make_save_corpus("dev_corpus", TEST_PATH, model)
+    # corpus_embeddings = load_corpus_embeddings("corpus.pt")
+
     # model = get_model("sentence-transformers/multi-qa-mpnet-base-dot-v1")
 
-    print(get_addresses(['пушка кедр 12'], model, get_corpus(path)))
+    # print(get_addresses(['Пушкин, Кедринская 12'], model, corpus_embeddings, get_corpus(TEST_PATH)))

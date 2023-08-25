@@ -7,7 +7,7 @@ from schemas import AddressResponse
 
 from sentence_transformers import SentenceTransformer
 
-from search import get_addresses
+from search import get_addresses, load_corpus_embeddings
 
 app = FastAPI()
 
@@ -15,6 +15,7 @@ app = FastAPI()
 class MlMeta:
     def __init__(self):
         self.model = None
+        self.corpus_embeddings = None
         self.corpus = None
 
 
@@ -24,6 +25,7 @@ MlMeta = MlMeta()
 @app.on_event("startup")
 async def startup_event():
     MlMeta.model = SentenceTransformer("model_dataset")
+    MlMeta.corpus_embeddings = load_corpus_embeddings("corpus.pt")
     MlMeta.corpus = get_corpus("additional_data/building_20230808.csv")
     pass
 
@@ -61,7 +63,7 @@ async def get_address(
         query: str
 ):
     try:
-        result = await get_addresses(query, MlMeta.model, MlMeta.corpus)
+        result = await get_addresses([query], MlMeta.model, MlMeta.corpus_embeddings, MlMeta.corpus)
         return {
             "success": True,
             "query": query,
