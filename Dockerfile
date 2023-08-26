@@ -1,4 +1,11 @@
-FROM ubuntu:latest
-LABEL authors="saifu"
+FROM python:3.11.4
 
-ENTRYPOINT ["top", "-b"]
+RUN mkdir /fastapi-app
+
+WORKDIR /fastapi-app
+
+COPY requirements.txt /fastapi-app
+
+RUN pip install -r requirements.txt
+
+COPY . /fastapi-app

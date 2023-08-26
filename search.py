@@ -77,6 +77,10 @@ async def get_addresses(query: list[str], model: SentenceTransformer, corpus_emb
     return res
 
 
+# def test_evaluate(model: SentenceTransformer, corpus_embeddings: torch.Tensor, ids, corpus: list[str]):
+    
+
+
 def make_save_corpus(name: str, path: str, model: SentenceTransformer):
     ids, corpus = get_corpus(path)
     embeddings = model.encode(corpus, batch_size=128, show_progress_bar=True, convert_to_tensor=True, device="cuda")

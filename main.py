@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from starlette import status
+from transliterate import translit
 
 from dataset import get_corpus
 from exceptions import NotFoundException, NOT_FOUND_EXCEPTION_TEXT
@@ -21,6 +22,8 @@ class MlMeta:
 
 
 MlMeta = MlMeta()
+translation = str.maketrans(dict(zip('QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm',
+                                     'ЙЦУКЕНГШЩЗФЫВАПРОЛДЯЧСМИТЬйцукенгшщзфывапролдячсмить')))
 
 
 @app.on_event("startup")
@@ -64,7 +67,9 @@ async def get_address(
         query: str
 ):
     try:
-        result = await get_addresses([query], MlMeta.model, MlMeta.corpus_embeddings, MlMeta.ids, MlMeta.corpus)
+        query1 = translit(query, 'ru')
+        query2 = query.translate(translation)
+        result = await get_addresses([query1, query2], MlMeta.model, MlMeta.corpus_embeddings, MlMeta.ids, MlMeta.corpus)
         print(result)
         return {
             "success": True,
