@@ -28,8 +28,10 @@ translation = str.maketrans(dict(zip('QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfgh
 
 @app.on_event("startup")
 async def startup_event():
-    MlMeta.model = SentenceTransformer("model_dataset")
-    MlMeta.corpus_embeddings = load_corpus_embeddings("dev_corpus.pt")
+    # MlMeta.model = SentenceTransformer("ai-forever/sbert_large_nlu_ru")
+    # MlMeta.model = SentenceTransformer("_dev_model")
+    MlMeta.model = SentenceTransformer("model_dataset_v2")
+    MlMeta.corpus_embeddings = load_corpus_embeddings("corpus_v2.pt")
     MlMeta.ids, MlMeta.corpus = get_corpus("additional_data/building_20230808.csv")
     pass
 

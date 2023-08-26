@@ -3,9 +3,10 @@ from typing import List
 
 from sklearn.metrics.pairwise import paired_cosine_distances
 import seaborn as sns
+from tqdm import tqdm
 
-from config import TRAIN_EX, TEST_EX, EPOCHS, TEST_PATH
-from dataset import load_dataset, create_pair_data, get_corpus
+from config import TRAIN_EX, TEST_EX, EPOCHS, TEST_PATH, ALL_PATH
+from dataset import load_dataset, create_pair_data, get_corpus, get_test_dataset
 from sentence_transformers import SentenceTransformer, InputExample, evaluation, losses, util
 import torch
 from torch.utils.data import DataLoader
@@ -42,7 +43,9 @@ def fit_save_model(name: str, model: SentenceTransformer, dataloader, ex):
     train_loss = losses.CosineSimilarityLoss(model=model)
     model.fit(train_objectives=[(dataloader, train_loss)],
               epochs=EPOCHS,
-              warmup_steps=int(0.1 * (ex / 8)))
+              warmup_steps=int(0.1 * (ex / 8)),
+
+              )
     model.save(name)
 
 
@@ -77,8 +80,41 @@ async def get_addresses(query: list[str], model: SentenceTransformer, corpus_emb
     return res
 
 
-# def test_evaluate(model: SentenceTransformer, corpus_embeddings: torch.Tensor, ids, corpus: list[str]):
-    
+def test_get_addresses(query: list[str], model: SentenceTransformer, corpus_embeddings: torch.Tensor, ids, corpus: list[str]) -> List[int]:
+    query_embedding = model.encode(query, convert_to_tensor=True, show_progress_bar=True, device="cuda")
+
+    cos_scores = util.cos_sim(query_embedding, corpus_embeddings)[0]
+    top_results = torch.topk(cos_scores, k=5)
+    res = []
+    for score, idx in zip(top_results[0], top_results[1]):
+        if score < 0.40:
+            raise NotFoundException
+        res.append(ids[idx])
+    return res
+
+
+def get_test_accuracy_score(path: str, model: SentenceTransformer, corpus_embeddings: torch.Tensor, ids, corpus: list[str]):
+    addresses, target = get_test_dataset(path)
+    predict = []
+    predict_top5 = []
+    for i in tqdm(range(len(addresses))):
+        try:
+            pred = test_get_addresses([addresses[i]], model, corpus_embeddings, ids, corpus)
+            predict.append(pred[0])
+            for p in pred:
+                if p == target[i]:
+                    predict_top5.append(1)
+                    break
+            else:
+                predict_top5.append(0)
+        except NotFoundException:
+            predict.append(0)
+
+    accuracy = sum([1 if predict[i] == target[i] else 0 for i in range(len(predict))]) / len(predict)
+    print("Accuracy: ", accuracy)
+    top5_accuracy = sum(predict_top5) / len(predict_top5)
+    print("Top5 Accuracy: ", top5_accuracy)
+    return accuracy
 
 
 def make_save_corpus(name: str, path: str, model: SentenceTransformer):
@@ -94,14 +130,18 @@ def load_corpus_embeddings(path: str):
 if __name__ == '__main__':
     path = "not_simple_2000.csv"
     dataloader = get_data_loader(path, TRAIN_EX)
-    model = get_model("ai-forever/sbert_large_nlu_ru")
-    fit_save_model("dev_model", model, dataloader, TRAIN_EX)
+    model = get_model("model_dataset_v2")
+    # model = get_model("ai-forever/sbert_large_nlu_ru")
+    fit_save_model("model_dataset_v3", model, dataloader, TRAIN_EX)
     # evaluate_model(model, path)
-    # model = get_model("model_dataset")
+    model = get_model("model_dataset_v3")
 
-    # make_save_corpus("dev_corpus", TEST_PATH, model)
-    # corpus_embeddings = load_corpus_embeddings("corpus.pt")
+    make_save_corpus("corpus_v3", ALL_PATH, model)
+    corpus_embeddings = load_corpus_embeddings("corpus_v3.pt")
 
     # model = get_model("sentence-transformers/multi-qa-mpnet-base-dot-v1")
 
     # print(get_addresses(['Пушкин, Кедринская 12'], model, corpus_embeddings, get_corpus(TEST_PATH)))
+
+    ids, corpus = get_corpus(ALL_PATH)
+    get_test_accuracy_score(TEST_PATH, model, corpus_embeddings, ids, corpus)
