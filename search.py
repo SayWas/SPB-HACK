@@ -1,4 +1,5 @@
 import time
+from typing import List
 
 from sklearn.metrics.pairwise import paired_cosine_distances
 import seaborn as sns
@@ -10,6 +11,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from exceptions import NotFoundException
+from schemas import Address
 
 
 def get_labels(path: str, ex: int):
@@ -61,17 +63,22 @@ def evaluate_model(model, path: str):
     sns.distplot(cosine_scores[int(TEST_EX / 2):], label="0")
 
 
-def get_addresses(query: list[str], model: SentenceTransformer, corpus_embeddings: torch.Tensor, corpus: list[str]):
+async def get_addresses(query: list[str], model: SentenceTransformer, corpus_embeddings: torch.Tensor, ids, corpus: list[str]) -> List[Address]:
     query_embedding = model.encode(query, convert_to_tensor=True, show_progress_bar=True, device="cuda")
 
     cos_scores = util.cos_sim(query_embedding, corpus_embeddings)[0]
     top_results = torch.topk(cos_scores, k=5)
+    res = []
     for score, idx in zip(top_results[0], top_results[1]):
+        if score < 0.40:
+            raise NotFoundException
         print(corpus[idx], "(Score: {:.4f})".format(score))
+        res.append(Address(target_building_id=ids[idx], target_address=corpus[idx]))
+    return res
 
 
 def make_save_corpus(name: str, path: str, model: SentenceTransformer):
-    corpus = get_corpus(path)
+    ids, corpus = get_corpus(path)
     embeddings = model.encode(corpus, batch_size=128, show_progress_bar=True, convert_to_tensor=True, device="cuda")
     torch.save(embeddings, name + ".pt")
 

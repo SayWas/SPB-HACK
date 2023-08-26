@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from starlette import status
 
 from dataset import get_corpus
@@ -16,6 +16,7 @@ class MlMeta:
     def __init__(self):
         self.model = None
         self.corpus_embeddings = None
+        self.ids = None
         self.corpus = None
 
 
@@ -25,8 +26,8 @@ MlMeta = MlMeta()
 @app.on_event("startup")
 async def startup_event():
     MlMeta.model = SentenceTransformer("model_dataset")
-    MlMeta.corpus_embeddings = load_corpus_embeddings("corpus.pt")
-    MlMeta.corpus = get_corpus("additional_data/building_20230808.csv")
+    MlMeta.corpus_embeddings = load_corpus_embeddings("dev_corpus.pt")
+    MlMeta.ids, MlMeta.corpus = get_corpus("additional_data/building_20230808.csv")
     pass
 
 
@@ -63,16 +64,17 @@ async def get_address(
         query: str
 ):
     try:
-        result = await get_addresses([query], MlMeta.model, MlMeta.corpus_embeddings, MlMeta.corpus)
+        result = await get_addresses([query], MlMeta.model, MlMeta.corpus_embeddings, MlMeta.ids, MlMeta.corpus)
+        print(result)
         return {
             "success": True,
             "query": query,
             "result": result
         }
     except NotFoundException:
-        return {
-            "success": False,
-            "details": NOT_FOUND_EXCEPTION_TEXT,
-        }
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=NOT_FOUND_EXCEPTION_TEXT
+        )
     except Exception as e:
         print(e)

@@ -37,4 +37,5 @@ def create_pair_data(text, labels, size):
 def get_corpus(path):
     df = pd.read_csv(path, sep=",", header=0)
     df.drop_duplicates(subset=["full_address"], inplace=True)
-    return df["full_address"].tolist()
+    print(len(df))
+    return df["id"].tolist(), df["full_address"].tolist()
